@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_application_1/data/mock_catalog.dart';
@@ -115,6 +116,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _isAnalyzingBreed = false;
   String? _selectedImageName;
 
+  bool get _supportsCameraCapture {
+    if (kIsWeb) {
+      return true;
+    }
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android || TargetPlatform.iOS => true,
+      TargetPlatform.fuchsia ||
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows => false,
+    };
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -189,25 +203,81 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
-  Future<void> _pickImage() async {
-    final XFile? pickedFile = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1800,
-      imageQuality: 90,
-    );
+  Future<void> _pickImageFrom(ImageSource source) async {
+    XFile? pickedFile;
+
+    try {
+      pickedFile = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1800,
+        imageQuality: 90,
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            source == ImageSource.camera
+                ? 'Camera is not available on this platform. Use Gallery instead.'
+                : 'Could not open image picker right now. Please try again.',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (pickedFile == null || !mounted) {
       return;
     }
 
+    final XFile selectedFile = pickedFile;
+
     setState(() {
-      _imageController.text = pickedFile.path;
-      _selectedImageName = pickedFile.name;
+      _imageController.text = selectedFile.path;
+      _selectedImageName = selectedFile.name;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Selected image: ${pickedFile.name}')),
+      SnackBar(content: Text('Selected image: ${selectedFile.name}')),
     );
+  }
+
+  Future<void> _pickImage() async {
+    if (!_supportsCameraCapture) {
+      await _pickImageFrom(ImageSource.gallery);
+      return;
+    }
+
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take photo'),
+                onTap: () => Navigator.of(context).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from gallery'),
+                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source == null) {
+      return;
+    }
+
+    await _pickImageFrom(source);
   }
 
   @override

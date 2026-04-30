@@ -1,7 +1,4 @@
-cd C:/app/flutter_application_1
-git add [flutter-ci.yml](http://_vscodecontentref_/1)
-git commit -m "Add Flutter CI workflow"
-git pushimport 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_application_1/screens/home_root_screen.dart';
 
 class DogCareApp extends StatelessWidget {

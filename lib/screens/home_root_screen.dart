@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_application_1/data/mock_catalog.dart';
 import 'package:flutter_application_1/models/breed_analysis.dart';
 import 'package:flutter_application_1/models/care_plan.dart';
@@ -100,6 +101,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final BreedAnalysisApi _breedAnalysisApi = MockBreedAnalysisApi();
+  final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _breedController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
@@ -111,6 +113,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ActivityLevel _activity = ActivityLevel.medium;
   BreedAnalysisResult? _analysisResult;
   bool _isAnalyzingBreed = false;
+  String? _selectedImageName;
 
   @override
   void dispose() {
@@ -186,11 +189,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
-  void _showImagePickerPlaceholder() {
+  Future<void> _pickImage() async {
+    final XFile? pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1800,
+      imageQuality: 90,
+    );
+
+    if (pickedFile == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _imageController.text = pickedFile.path;
+      _selectedImageName = pickedFile.name;
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Image picker placeholder only. Connect image_picker or camera next.'),
-      ),
+      SnackBar(content: Text('Selected image: ${pickedFile.name}')),
     );
   }
 
@@ -241,7 +257,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                 ),
                                 SizedBox(height: 4),
-                                Text('Placeholder UI for image upload and breed-analysis API integration.'),
+                                Text('Upload a photo to run breed analysis with the selected image.'),
                               ],
                             ),
                           ),
@@ -253,7 +269,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         runSpacing: 12,
                         children: <Widget>[
                           OutlinedButton.icon(
-                            onPressed: _showImagePickerPlaceholder,
+                            onPressed: _pickImage,
                             icon: const Icon(Icons.upload_file),
                             label: const Text('Choose Image'),
                           ),
@@ -271,11 +287,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
+                      if (_selectedImageName != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Selected file: $_selectedImageName',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       TextFormField(
                         controller: _imageController,
                         decoration: const InputDecoration(
-                          labelText: 'Dog photo path or upload token',
-                          hintText: 'example: images/lab_buddy.jpg',
+                          labelText: 'Dog photo path',
+                          hintText: 'Filled automatically after choosing an image',
                         ),
                       ),
                       if (_analysisResult != null) ...<Widget>[

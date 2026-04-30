@@ -36,36 +36,23 @@ class _HomeRootScreenState extends State<HomeRootScreen> {
 
   Future<void> _restoreProfile() async {
     final DogProfile? storedProfile = await _profileStorage.loadProfile();
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     setState(() {
       _dogProfile = storedProfile;
       _isLoading = false;
     });
   }
 
-  Future<void> _createProfile(DogProfile profile) async {
+  Future<void> _saveProfile(DogProfile profile) async {
     await _profileStorage.saveProfile(profile);
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _dogProfile = profile;
-    });
+    if (!mounted) return;
+    setState(() => _dogProfile = profile);
   }
 
-  Future<void> _resetProfile() async {
+  Future<void> _clearProfile() async {
     await _profileStorage.clearProfile();
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _dogProfile = null;
-    });
+    if (!mounted) return;
+    setState(() => _dogProfile = null);
   }
 
   @override
@@ -76,16 +63,13 @@ class _HomeRootScreenState extends State<HomeRootScreen> {
       );
     }
 
-    if (_dogProfile == null) {
-      return OnboardingScreen(
-        onCreateProfile: _createProfile,
-      );
-    }
-
+    // Always show the dashboard shell with all tabs.
+    // The Plan tab handles onboarding inline when no profile exists.
     return DashboardScreen(
-      profile: _dogProfile!,
+      profile: _dogProfile,
       catalog: mockCatalog,
-      onResetProfile: _resetProfile,
+      onSaveProfile: _saveProfile,
+      onResetProfile: _clearProfile,
     );
   }
 }
@@ -537,11 +521,13 @@ class DashboardScreen extends StatefulWidget {
     super.key,
     required this.profile,
     required this.catalog,
+    required this.onSaveProfile,
     required this.onResetProfile,
   });
 
-  final DogProfile profile;
+  final DogProfile? profile;
   final List<Product> catalog;
+  final Future<void> Function(DogProfile) onSaveProfile;
   final VoidCallback onResetProfile;
 
   @override
@@ -555,20 +541,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final CartStorageService _cartStorage = CartStorageService();
   final CartService _cartService = CartService();
   int _selectedIndex = 0;
-  late CarePlan _plan;
+  CarePlan? _plan;
   FoodInventory? _inventory;
   Cart _cart = Cart();
+
+  String get _storageId => widget.profile?.id ?? 'guest';
 
   @override
   void initState() {
     super.initState();
-    _plan = _aiService.generatePlan(profile: widget.profile, catalog: widget.catalog);
+    if (widget.profile != null) {
+      _plan = _aiService.generatePlan(
+          profile: widget.profile!, catalog: widget.catalog);
+    }
     _loadInventory();
     _loadCart();
   }
 
+  @override
+  void didUpdateWidget(DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.profile != null &&
+        widget.profile?.id != oldWidget.profile?.id) {
+      _plan = _aiService.generatePlan(
+          profile: widget.profile!, catalog: widget.catalog);
+      _loadInventory();
+      _loadCart();
+    }
+  }
+
   Future<void> _loadInventory() async {
-    final FoodInventory? saved = await _inventoryStorage.loadInventory(widget.profile.id);
+    final FoodInventory? saved =
+        await _inventoryStorage.loadInventory(_storageId);
     if (!mounted) return;
     setState(() => _inventory = saved);
   }
@@ -580,13 +584,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadCart() async {
-    final Cart saved = await _cartStorage.loadCart(widget.profile.id);
+    final Cart saved = await _cartStorage.loadCart(_storageId);
     if (!mounted) return;
     setState(() => _cart = saved);
   }
 
   Future<void> _saveCart(Cart cart) async {
-    await _cartStorage.saveCart(widget.profile.id, cart);
+    await _cartStorage.saveCart(_storageId, cart);
     if (!mounted) return;
     setState(() => _cart = cart);
   }
@@ -594,10 +598,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final int cartBadge = _cart.itemCount;
+    final DogProfile? profile = widget.profile;
+    final CarePlan? plan = _plan;
+
+    // Plan tab: onboarding form when no profile, care plan overview when profile exists.
+    final Widget planTab = profile == null || plan == null
+        ? OnboardingScreen(onCreateProfile: (DogProfile p) async {
+            await widget.onSaveProfile(p);
+          })
+        : _OverviewTab(profile: profile, plan: plan);
+
+    // Store: AI-suggested products when plan exists, full catalog otherwise.
+    final List<Product> storeProducts =
+        plan != null ? plan.productSuggestions : widget.catalog;
+
+    // Reminders: plan-based or generic.
+    final List<ReminderItem> reminders = plan?.reminders ??
+        const <ReminderItem>[
+          ReminderItem(
+              title: 'Set up your dog profile',
+              message:
+                  'Go to the Plan tab to create a profile and get AI recommendations.'),
+          ReminderItem(
+              title: 'Daily feeding reminder',
+              message: 'Remember to feed your dog at consistent times each day.'),
+        ];
+
     final List<Widget> pages = <Widget>[
-      _OverviewTab(profile: widget.profile, plan: _plan),
+      planTab,
       _StoreTab(
-        products: _plan.productSuggestions,
+        products: storeProducts,
         cart: _cart,
         onAddOneTime: (Product p) async {
           await _saveCart(_cartService.addOneTime(_cart, p));
@@ -606,19 +636,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
           await _saveCart(_cartService.addSubscription(_cart, p, freq));
         },
       ),
-      _RemindersTab(reminders: _plan.reminders),
+      _RemindersTab(reminders: reminders),
       _InventoryTab(
         inventory: _inventory,
-        dailyPortionGrams: _inventoryService.dailyPortionGramsFromPlan(_plan),
+        dailyPortionGrams:
+            plan != null ? _inventoryService.dailyPortionGramsFromPlan(plan) : 0,
         onLogPurchase: (String productName, String sku, double bagKg) async {
           final FoodInventory next = _inventory == null
               ? _inventoryService.createInventory(
-                  dogProfileId: widget.profile.id,
+                  dogProfileId: _storageId,
                   productName: productName,
                   productSku: sku,
                   bagWeightKg: bagKg,
-                  dailyPortionGrams:
-                      _inventoryService.dailyPortionGramsFromPlan(_plan),
+                  dailyPortionGrams: plan != null
+                      ? _inventoryService.dailyPortionGramsFromPlan(plan)
+                      : 0,
                 )
               : _inventoryService.restock(_inventory!, bagKg);
           await _saveInventory(next);
@@ -639,7 +671,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           await _saveCart(_cartService.setQuantity(_cart, sku, qty));
         },
         onClearCart: () async {
-          await _cartStorage.clearCart(widget.profile.id);
+          await _cartStorage.clearCart(_storageId);
           if (!mounted) return;
           setState(() => _cart = Cart());
         },
@@ -648,28 +680,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('AI Dog Care - ${widget.profile.name}'),
+        title: Text(profile != null
+            ? 'AI Dog Care - ${profile.name}'
+            : 'AI Dog Care'),
         actions: <Widget>[
-          IconButton(
-            tooltip: 'Reset profile',
-            onPressed: widget.onResetProfile,
-            icon: const Icon(Icons.restart_alt),
-          ),
+          if (profile != null)
+            IconButton(
+              tooltip: 'Reset profile',
+              onPressed: widget.onResetProfile,
+              icon: const Icon(Icons.restart_alt),
+            ),
         ],
       ),
       body: pages[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (int index) {
-          setState(() {
-            _selectedIndex = index;
-          });
+          setState(() => _selectedIndex = index);
         },
         destinations: <NavigationDestination>[
           const NavigationDestination(icon: Icon(Icons.pets), label: 'Plan'),
           const NavigationDestination(icon: Icon(Icons.store), label: 'Store'),
-          const NavigationDestination(icon: Icon(Icons.notifications_active), label: 'Reminders'),
-          const NavigationDestination(icon: Icon(Icons.inventory_2), label: 'Inventory'),
+          const NavigationDestination(
+              icon: Icon(Icons.notifications_active), label: 'Reminders'),
+          const NavigationDestination(
+              icon: Icon(Icons.inventory_2), label: 'Inventory'),
           NavigationDestination(
             icon: Badge(
               isLabelVisible: cartBadge > 0,

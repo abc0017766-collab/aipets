@@ -1,19 +1,24 @@
+import 'dart:typed_data';
+
 class BreedAnalysisRequest {
   const BreedAnalysisRequest({
     required this.imagePath,
     required this.dogName,
     this.ownerNotes,
+    this.imageBytes,
   });
 
   final String imagePath;
   final String dogName;
   final String? ownerNotes;
+  final Uint8List? imageBytes;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'imagePath': imagePath,
       'dogName': dogName,
       'ownerNotes': ownerNotes,
+      'hasImageBytes': imageBytes != null,
     };
   }
 }

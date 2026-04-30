@@ -15,3 +15,18 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Real AI Breed Analysis (Free Tier)
+
+This app can use the Hugging Face Inference API free tier for real image-based breed analysis.
+
+1. Create a Hugging Face access token with inference permission.
+2. Run with dart defines:
+
+```bash
+flutter run \
+	--dart-define=HF_API_TOKEN=your_token_here \
+	--dart-define=HF_MODEL_ID=dima806/dog-breeds-image-classification
+```
+
+If `HF_API_TOKEN` is not provided, the app automatically falls back to the local mock analyzer.

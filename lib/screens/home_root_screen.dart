@@ -101,7 +101,10 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final BreedAnalysisApi _breedAnalysisApi = MockBreedAnalysisApi();
+  final BreedAnalysisApi _breedAnalysisApi = FallbackBreedAnalysisApi(
+    primary: HuggingFaceBreedAnalysisApi.fromEnvironment(),
+    fallback: MockBreedAnalysisApi(),
+  );
   final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _breedController = TextEditingController();
@@ -114,6 +117,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ActivityLevel _activity = ActivityLevel.medium;
   BreedAnalysisResult? _analysisResult;
   bool _isAnalyzingBreed = false;
+  XFile? _selectedImageFile;
   String? _selectedImageName;
 
   bool get _supportsCameraCapture {
@@ -182,11 +186,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _isAnalyzingBreed = true;
     });
 
+    final Uint8List? imageBytes = await _selectedImageFile?.readAsBytes();
+
     final BreedAnalysisResult result = await _breedAnalysisApi.analyzeBreed(
       BreedAnalysisRequest(
         imagePath: imagePath,
         dogName: _nameController.text.trim(),
         ownerNotes: _healthController.text.trim(),
+        imageBytes: imageBytes,
       ),
     );
 
@@ -237,6 +244,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() {
       _imageController.text = selectedFile.path;
       _selectedImageName = selectedFile.name;
+      _selectedImageFile = selectedFile;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(

@@ -173,6 +173,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  Future<void> _useDemoProfile() async {
+    await widget.onCreateProfile(
+      DogProfile(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        ownerId: 'owner-demo-1',
+        name: 'Buddy',
+        breed: 'Labrador Retriever',
+        ageInMonths: 24,
+        weightKg: 28,
+        gender: DogGender.male,
+        activityLevel: ActivityLevel.medium,
+        healthConditions: const <String>[],
+        imagePath: _imageController.text.trim().isEmpty ? null : _imageController.text.trim(),
+      ),
+    );
+  }
+
   Future<void> _analyzeBreed() async {
     final String imagePath = _imageController.text.trim();
     if (imagePath.isEmpty) {
@@ -500,6 +517,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               FilledButton(
                 onPressed: _submit,
                 child: const Text('Generate AI Care Plan'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _useDemoProfile,
+                icon: const Icon(Icons.dashboard_customize_outlined),
+                label: const Text('Use Demo Profile (Open all tabs)'),
               ),
             ],
           ),

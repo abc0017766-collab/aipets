@@ -32,7 +32,8 @@ jobs:
       - name: Build web for GitHub Pages
         env:
           REPO_NAME: ${{ github.event.repository.name }}
-        run: flutter build web --release --base-href "/${REPO_NAME}/"
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
+        run: flutter build web --release --base-href "/${REPO_NAME}/" --dart-define=HF_API_TOKEN="${HF_API_TOKEN}"
 
       - name: Disable Jekyll
         run: touch build/web/.nojekyll

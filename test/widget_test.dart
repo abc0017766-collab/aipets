@@ -14,7 +14,7 @@ void main() {
     await tester.pumpWidget(const DogCareApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('AI Dog Care - Onboarding'), findsOneWidget);
+    expect(find.text('AI Dog Care'), findsOneWidget);
     expect(find.text('Create your dog profile'), findsOneWidget);
     expect(find.text('Dog photo upload'), findsOneWidget);
     expect(find.text('Analyze Breed'), findsOneWidget);
